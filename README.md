@@ -1,6 +1,9 @@
 # clawd-pet
 
-Claude Code plugin. Banner above the prompt where Clawd, the pixel-art mascot, walks around on grass.
+Claude Code plugin. Banner above the prompt where Clawd, the pixel-art mascot.
+
+<img width="480" height="406" alt="Recording2026-10-05111936-ezgif com-optimize" src="https://github.com/user-attachments/assets/2d46cbe9-594f-4853-ade0-a4cd39245f8e" />
+
 
 ## Behaviour
 
