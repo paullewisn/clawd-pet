@@ -7,7 +7,7 @@ const SHADE = '#be684d'
 
 const FAMILY_COLOURS: Record<string, string> = {
   sonnet: BODY,
-  haiku: '#2d6b5f',
+  haiku: '#4fb8a0',
   opus: '#9b7bd9',
   fable: '#e0b040',
 }
@@ -20,26 +20,6 @@ const darken = (hex: string) =>
         .padStart(2, '0'),
     )
     .join('')}`
-
-const GRASS = ['#4f8a34', '#68a647']
-const BLADES = ['▄', '▅', '▅', '▆', '▆', '▇']
-const FLOWERS = ['#f28cb1', '#f5d547', '#f4f1ea', '#b79cf0', '#e5534b']
-
-const hash = (col: number) => ((Math.abs(col) * 2654435761) >>> 0) % 997
-
-type Flower = { height: number; colour: string }
-const garden = new Map<number, Flower>()
-let gardenEnd = 0
-
-const growGarden = (cols: number) => {
-  while (gardenEnd < cols) {
-    gardenEnd += 3 + Math.floor(Math.random() * 16)
-    garden.set(gardenEnd, {
-      height: 1 + Math.floor(Math.random() * 3),
-      colour: FLOWERS[Math.floor(Math.random() * FLOWERS.length)]!,
-    })
-  }
-}
 
 let ink = BODY
 let shadeInk = SHADE
@@ -435,30 +415,10 @@ const Clawd: ClientModule<Props> = (props, surface) => {
   const pad = (n: number, k: string) =>
     n > 0 ? <Text key={k}>{' '.repeat(n)}</Text> : null
 
-  type Cell = { ch: string; fg?: string; bg?: string; dim?: boolean }
-
-  growGarden(cols)
-
-  const groundCell = (col: number, t: number): Cell => {
-    const h = hash(col)
-    const flower = garden.get(col)
-    const last = ROWS / 2 - 1
-    if (t === last) {
-      return { ch: flower ? '▄' : BLADES[h % BLADES.length]!, fg: GRASS[h % 2] }
-    }
-    if (flower && t === last - flower.height) {
-      return { ch: '✿', fg: flower.colour }
-    }
-    if (flower && t > last - flower.height) {
-      return { ch: '│', fg: GRASS[0] }
-    }
-
-    return { ch: ' ' }
-  }
-
   const lines = []
   for (let t = 0; t < ROWS / 2; t++) {
     const r = t * 2
+    type Cell = { ch: string; fg?: string; bg?: string; dim?: boolean }
     const cellsRow: Cell[] = []
     for (let c = 0; c < W; c++) {
       const top = colour(px[r]![c]!)
@@ -469,9 +429,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
           : top === BG
             ? { ch: '▄', fg: bot }
             : bot === BG
-              ? t === ROWS / 2 - 1
-                ? { ch: '▀', fg: top, bg: GRASS[hash(x + c) % 2] }
-                : { ch: '▀', fg: top }
+              ? { ch: '▀', fg: top }
               : { ch: '▀', fg: top, bg: bot },
       )
     }
@@ -492,27 +450,20 @@ const Clawd: ClientModule<Props> = (props, surface) => {
         </Text>
       ))
     }
-    const padG = (start: number, n: number, k: string) => {
-      if (n <= 0) return null
-      const list: Cell[] = []
-      for (let c = start; c < start + n; c++) list.push(groundCell(c, t))
-
-      return merge(list, k)
-    }
-    const spriteCells = cellsRow.map((cell, c) => (cell.ch === ' ' ? groundCell(x + c, t) : cell))
-    const sprite = merge(x < 0 ? spriteCells.slice(-x) : spriteCells, 's')
-    const tail = (ch: string, col: number) =>
-      t === 1 ? <Text key="t" color={ink}>{ch}</Text> : padG(col, 1, 't')
+    const sprite = merge(x < 0 ? cellsRow.slice(-x) : cellsRow, 's')
+    const tail = (ch: string) => (
+      <Text key="t" color={ink}>{t === 1 ? ch : ' '}</Text>
+    )
 
     let cells
     if (side === 'right') {
-      cells = [padG(0, x, 'p0'), sprite, tail('◀', x + W), bubble(t), padG(x + W + 1 + bw, cols - x - W - 1 - bw, 'p1')]
+      cells = [pad(x, 'p0'), sprite, tail('◀'), bubble(t), pad(cols - x - W - 1 - bw, 'p1')]
     } else if (side === 'left') {
-      cells = [padG(0, x - 1 - bw, 'p0'), bubble(t), tail('▶', x - 1), sprite, padG(x + W, cols - x - W, 'p1')]
+      cells = [pad(x - 1 - bw, 'p0'), bubble(t), tail('▶'), sprite, pad(cols - x - W, 'p1')]
     } else if (t === 0 && (s?.glyphs.length ?? 0) > 0) {
       const full: Cell[] = []
-      for (let c = 0; c < cols; c++) full.push(groundCell(c, t))
-      for (let c = 0; c < W; c++) if (x + c >= 0 && x + c < cols) full[x + c] = spriteCells[c]!
+      for (let c = 0; c < cols; c++) full.push({ ch: ' ' })
+      for (let c = 0; c < W; c++) if (x + c >= 0 && x + c < cols) full[x + c] = cellsRow[c]!
       for (const g of s!.glyphs) {
         if (g.x >= 0 && g.x < cols && full[g.x]!.ch === ' ') {
           full[g.x] = { ch: g.ch, fg: ink, dim: g.age > GLYPH_FADE }
@@ -520,7 +471,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
       }
       cells = [merge(full, 'f')]
     } else {
-      cells = [padG(0, x, 'p0'), sprite, padG(x + W, cols - x - W, 'p1')]
+      cells = [pad(x, 'p0'), sprite, pad(cols - x - W, 'p1')]
     }
 
     lines.push(<Box key={`r${t}`}>{cells}</Box>)
