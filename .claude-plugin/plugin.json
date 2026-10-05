@@ -1,0 +1,9 @@
+{
+  "name": "clawd",
+  "version": "0.13.6",
+  "description": "Banner above the prompt where Claude Code's pixel-art mascot Clawd randomly walks around, with a speech bubble showing the git branch and the PR / ADO ticket links seen this session.",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Paul Lewis"
+  }
+}
