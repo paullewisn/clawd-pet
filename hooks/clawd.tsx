@@ -30,8 +30,8 @@ const familyOf = (model: string | undefined) =>
 const W = 12
 const ROWS = 8
 const METER = 2
-const RED_AT = 80
-const BANNER_ROWS = ROWS / 2 + 1
+const RED_AT = 75
+const METER_ROWS = ROWS / 2
 const METER_GREEN = '#4caf50'
 const METER_ORANGE = '#ff9800'
 const METER_RED = '#f44336'
@@ -424,11 +424,11 @@ const Clawd: ClientModule<Props> = (props, surface) => {
   const pad = (n: number, k: string) =>
     n > 0 ? <Text key={k}>{' '.repeat(n)}</Text> : null
 
-  const fill = Math.max(0, Math.min(100, props.context ?? 0)) / 100 * BANNER_ROWS * 2
+  const fill = Math.max(0, Math.min(100, props.context ?? 0)) / 100 * METER_ROWS * 2
   const meter = (row: number) => {
-    const level = BANNER_ROWS - 1 - row
+    const level = METER_ROWS - row
     const units = Math.max(0, Math.min(2, fill - level * 2))
-    const zone = level < 2 ? METER_GREEN : level < 4 ? METER_ORANGE : METER_RED
+    const zone = level < 2 ? METER_GREEN : level < 3 ? METER_ORANGE : METER_RED
     const ch = units >= 1.5 ? '█' : units >= 0.5 ? '▄' : '░'
 
     return <Text key="meter" color={units >= 0.5 ? zone : METER_EMPTY}>{ch + ' '}</Text>
@@ -498,7 +498,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
 
   return (
     <Box flexDirection="column">
-      <Box key="gap">{meter(0)}{pad(cols, 'gap')}</Box>
+      <Box key="gap">{pad(METER, 'mgap')}{pad(cols, 'gap')}</Box>
       {lines}
     </Box>
   )
