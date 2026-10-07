@@ -29,6 +29,13 @@ const familyOf = (model: string | undefined) =>
 
 const W = 12
 const ROWS = 8
+const METER = 2
+const RED_AT = 80
+const BANNER_ROWS = ROWS / 2 + 1
+const METER_GREEN = '#4caf50'
+const METER_ORANGE = '#ff9800'
+const METER_RED = '#f44336'
+const METER_EMPTY = '#3a3a38'
 
 type Pixel = '.' | 'X' | 'E' | 'S'
 
@@ -185,6 +192,7 @@ type Props = {
   mode: string
   drafting: boolean
   doneSeq: number
+  context?: number
 }
 
 const LINK = '#6cb6ff'
@@ -202,7 +210,7 @@ let latest: Props | null = null
 
 const Clawd: ClientModule<Props> = (props, surface) => {
   const { Box, Text, Link } = surface.elements
-  const cols = Math.max(surface.columns, W)
+  const cols = Math.max(surface.columns - METER, W)
   const max = cols - W
   const s = surface.state as S | undefined
 
@@ -210,7 +218,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
     surface.every(120, () => {
       const L = latest
       const c0 = surface.state as S
-      const m = Math.max(surface.columns, W) - W
+      const m = Math.max(surface.columns - METER, W) - W
       const busy = L?.working === true
       const tick = c0.tick + 1
       const spawn = busy && tick % spawnEvery(L!.mode) === 0
@@ -220,7 +228,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
         turn: Math.max(0, c0.turn - 1),
         blink: c0.blink > 0 ? c0.blink - 1 : Math.random() < (busy && L?.mode === 'thinking' ? 0.07 : 0.03) ? 2 : 0,
         cheer: Math.max(0, c0.cheer - 1),
-        glyphs: stepGlyphs(c0.glyphs, spawn, c0.x, Math.max(surface.columns, W)),
+        glyphs: stepGlyphs(c0.glyphs, spawn, c0.x, Math.max(surface.columns - METER, W)),
       }
       if (c0.phase === 'leaving') {
         surface.setState(
@@ -276,19 +284,20 @@ const Clawd: ClientModule<Props> = (props, surface) => {
     })
     surface.onPointer(ev => {
       if (ev.type !== 'down' || ev.button !== 'left') return
+      const px = ev.x - METER
       const c = surface.state as S
       if (c.phase !== 'idle') return
-      const m = Math.max(surface.columns, W) - W
-      if (ev.x >= c.x && ev.x < c.x + W && ev.y >= 1 && ev.y <= ROWS / 2) {
+      const m = Math.max(surface.columns - METER, W) - W
+      if (px >= c.x && px < c.x + W && ev.y >= 1 && ev.y <= ROWS / 2) {
         surface.setState(
           c.react > 0
             ? { ...c, target: c.x, pause: MIN_PAUSE, react: 0, pose: 'front' }
             : { ...c, target: c.x, pause: SPEAK_TICKS, react: SPEAK_TICKS, pose: 'happy' },
         )
-      } else if (c.react > 0 && bubbleSpan && ev.x >= bubbleSpan[0] && ev.x < bubbleSpan[1]) {
+      } else if (c.react > 0 && bubbleSpan && px >= bubbleSpan[0] && px < bubbleSpan[1]) {
         return
       } else {
-        surface.setState({ ...c, target: Math.max(0, Math.min(m, ev.x - W / 2)), pause: 0, react: 0 })
+        surface.setState({ ...c, target: Math.max(0, Math.min(m, px - W / 2)), pause: 0, react: 0 })
       }
     })
     surface.setState({
@@ -331,7 +340,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
     : busy
     ? busyPose(props.mode, s?.tick ?? 0)
     : props.drafting
-      ? toEdge ? 'left' : 'down'
+      ? toEdge || (props.context ?? 0) >= RED_AT ? 'left' : 'down'
       : s && s.cheer > 0
         ? 'happy'
         : walking
@@ -415,6 +424,16 @@ const Clawd: ClientModule<Props> = (props, surface) => {
   const pad = (n: number, k: string) =>
     n > 0 ? <Text key={k}>{' '.repeat(n)}</Text> : null
 
+  const fill = Math.max(0, Math.min(100, props.context ?? 0)) / 100 * BANNER_ROWS * 2
+  const meter = (row: number) => {
+    const level = BANNER_ROWS - 1 - row
+    const units = Math.max(0, Math.min(2, fill - level * 2))
+    const zone = level < 2 ? METER_GREEN : level < 4 ? METER_ORANGE : METER_RED
+    const ch = units >= 1.5 ? '█' : units >= 0.5 ? '▄' : '░'
+
+    return <Text key="meter" color={units >= 0.5 ? zone : METER_EMPTY}>{ch + ' '}</Text>
+  }
+
   const lines = []
   for (let t = 0; t < ROWS / 2; t++) {
     const r = t * 2
@@ -474,12 +493,12 @@ const Clawd: ClientModule<Props> = (props, surface) => {
       cells = [pad(x, 'p0'), sprite, pad(cols - x - W, 'p1')]
     }
 
-    lines.push(<Box key={`r${t}`}>{cells}</Box>)
+    lines.push(<Box key={`r${t}`}>{meter(t + 1)}{cells}</Box>)
   }
 
   return (
     <Box flexDirection="column">
-      <Box key="gap">{pad(cols, 'gap')}</Box>
+      <Box key="gap">{meter(0)}{pad(cols, 'gap')}</Box>
       {lines}
     </Box>
   )

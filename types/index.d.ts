@@ -9,6 +9,7 @@ declare module 'claude-code' {
       model: string
       drafting: boolean
       doneSeq: number
+      context: number
     }
   }
 }

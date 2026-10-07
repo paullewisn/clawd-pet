@@ -9,6 +9,7 @@ const mode = atom({ plugin: 'clawd', key: 'mode' } as const, 'requesting')
 const model = atom({ plugin: 'clawd', key: 'model' } as const, '')
 const drafting = atom({ plugin: 'clawd', key: 'drafting' } as const, false)
 const doneSeq = atom({ plugin: 'clawd', key: 'doneSeq' } as const, 0)
+const context = atom({ plugin: 'clawd', key: 'context' } as const, 0)
 
 const MAX_REFS = 20
 const adoOrg = (): string =>
@@ -55,6 +56,14 @@ async function refresh($: EngineInterface) {
   if (name !== (await read($, branch))) {
     await update($, branch, () => name)
   }
+
+  try {
+    const pct = Math.round((await $.session.usage()).context.percent ?? 0)
+
+    if (pct !== (await read($, context))) {
+      await update($, context, () => pct)
+    }
+  } catch {}
 
   const current = (await $.session.model()) ?? ''
 
@@ -186,6 +195,7 @@ export const register: Register = on => {
           mode: await read($, mode),
           drafting: await read($, drafting),
           doneSeq: await read($, doneSeq),
+          context: await read($, context),
         }}
       />
     )
