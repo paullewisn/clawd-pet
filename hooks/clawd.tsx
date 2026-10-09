@@ -21,6 +21,8 @@ const darken = (hex: string) =>
     )
     .join('')}`
 
+const reserve = (p: { reviews?: unknown[] } | null | undefined) => ((p?.reviews?.length ?? 0) > 0 ? W + 1 : 0)
+
 let ink = BODY
 let shadeInk = SHADE
 
@@ -31,13 +33,17 @@ const W = 12
 const ROWS = 8
 const METER = 2
 const RED_AT = 75
+const BUDDY_BODY = '#e86a92'
+const GREY = '#9aa5b4'
+const OCTO_FACE = '#ffc4a3'
+const OCTO_RED = '#b23a37'
 const METER_ROWS = ROWS / 2
 const METER_GREEN = '#4caf50'
 const METER_ORANGE = '#ff9800'
 const METER_RED = '#f44336'
 const METER_EMPTY = '#3a3a38'
 
-type Pixel = '.' | 'X' | 'E' | 'S'
+type Pixel = '.' | 'X' | 'E' | 'S' | 'F' | 'R'
 
 type Pose = 'front' | 'left' | 'right' | 'happy' | 'crouch' | 'down'
 
@@ -120,7 +126,34 @@ const sprite = (pose: Pose, step: number, flip: boolean): Pixel[][] =>
     ? [...rows(['............']), ...heads.crouch, ...rows([TOPS])]
     : [...(pose === 'happy' && flip ? happyFlip : heads[pose]), ...shadeLeg(pose, gait[GAIT_ORDER[step % 4]!]!)]
 
-const colour = (p: Pixel) => (p === 'X' ? ink : p === 'E' ? EYE : p === 'S' ? shadeInk : BG)
+const octocat = rows([
+  '.X........X.',
+  '.XX......XX.',
+  'XXXXXXXXXXXX',
+  'XXXXXXXXXXXX',
+  'XFRRFFFFRRFX',
+  'XFRRFFFFRRFX',
+  'XXFFFFFFFFXX',
+  'XXFFFRRFFFXX',
+  '.XXXXXXXXXX.',
+  '.X.XX..XX.X.',
+])
+
+const octoTips = rows(['.X........X.', '..X......X..'])
+const octoLegs = rows(['.X.XX..XX.X.', 'X..XX..XX..X'])
+
+const octoFrame = (tick: number): Pixel[][] => {
+  const g = octocat.map(r => r.slice())
+  if (tick % 28 < 2) {
+    for (const r of [4, 5]) g[r] = g[r]!.map(p => (p === 'R' ? 'F' : p))
+  }
+  g[0] = octoTips[Math.floor(tick / 5) % 2]!
+  g[9] = octoLegs[Math.floor(tick / 5) % 2]!
+
+  return g
+}
+
+const colour = (p: Pixel) => (p === 'X' ? ink : p === 'E' ? EYE : p === 'S' ? shadeInk : p === 'F' ? OCTO_FACE : p === 'R' ? OCTO_RED : BG)
 
 type Glyph = { x: number; ch: string; age: number; dx: number }
 
@@ -193,6 +226,7 @@ type Props = {
   drafting: boolean
   doneSeq: number
   context?: number
+  reviews?: { label: string; href: string }[]
 }
 
 const LINK = '#6cb6ff'
@@ -210,7 +244,7 @@ let latest: Props | null = null
 
 const Clawd: ClientModule<Props> = (props, surface) => {
   const { Box, Text, Link } = surface.elements
-  const cols = Math.max(surface.columns - METER, W)
+  const cols = Math.max(surface.columns - METER - reserve(props), W)
   const max = cols - W
   const s = surface.state as S | undefined
 
@@ -218,7 +252,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
     surface.every(120, () => {
       const L = latest
       const c0 = surface.state as S
-      const m = Math.max(surface.columns - METER, W) - W
+      const m = Math.max(surface.columns - METER - reserve(L), W) - W
       const busy = L?.working === true
       const tick = c0.tick + 1
       const spawn = busy && tick % spawnEvery(L!.mode) === 0
@@ -228,7 +262,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
         turn: Math.max(0, c0.turn - 1),
         blink: c0.blink > 0 ? c0.blink - 1 : Math.random() < (busy && L?.mode === 'thinking' ? 0.07 : 0.03) ? 2 : 0,
         cheer: Math.max(0, c0.cheer - 1),
-        glyphs: stepGlyphs(c0.glyphs, spawn, c0.x, Math.max(surface.columns - METER, W)),
+        glyphs: stepGlyphs(c0.glyphs, spawn, c0.x, Math.max(surface.columns - METER - reserve(L), W)),
       }
       if (c0.phase === 'leaving') {
         surface.setState(
@@ -287,7 +321,9 @@ const Clawd: ClientModule<Props> = (props, surface) => {
       const px = ev.x - METER
       const c = surface.state as S
       if (c.phase !== 'idle') return
-      const m = Math.max(surface.columns - METER, W) - W
+      const mc = Math.max(surface.columns - METER - reserve(latest), W)
+      if (px >= mc) return
+      const m = mc - W
       if (px >= c.x && px < c.x + W && ev.y >= 1 && ev.y <= ROWS / 2) {
         surface.setState(
           c.react > 0
@@ -434,6 +470,37 @@ const Clawd: ClientModule<Props> = (props, surface) => {
     return <Text key="meter" color={units >= 0.5 ? zone : METER_EMPTY}>{ch + ' '}</Text>
   }
 
+  const reviewing = reserve(props) > 0
+  const isGithub = (props.reviews ?? []).some(r => r.href.includes('github.com'))
+  const buddyPx = (() => {
+    const prev = [ink, shadeInk]
+    ink = isGithub ? GREY : BUDDY_BODY
+    shadeInk = isGithub ? GREY : darken(BUDDY_BODY)
+    const out = isGithub ? octoFrame(s?.tick ?? 0) : [...rows(['............', '............']), ...sprite('left', 0, false)]
+    const cells = [] as { ch: string; fg?: string; bg?: string }[][]
+    for (let t = 0; t < out.length / 2; t++) {
+      cells.push(
+        out[0]!.map((_, c) => {
+          const top = colour(out[t * 2]![c]!)
+          const bot = colour(out[t * 2 + 1]![c]!)
+
+          return top === BG && bot === BG
+            ? { ch: ' ' }
+            : top === bot
+              ? { ch: '█', fg: top }
+              : top === BG
+              ? { ch: '▄', fg: bot }
+              : bot === BG
+                ? { ch: '▀', fg: top }
+                : { ch: '▀', fg: top, bg: bot }
+        }),
+      )
+    }
+    ;[ink, shadeInk] = prev as [string, string]
+
+    return cells
+  })()
+
   const lines = []
   for (let t = 0; t < ROWS / 2; t++) {
     const r = t * 2
@@ -493,12 +560,24 @@ const Clawd: ClientModule<Props> = (props, surface) => {
       cells = [pad(x, 'p0'), sprite, pad(cols - x - W, 'p1')]
     }
 
-    lines.push(<Box key={`r${t}`}>{meter(t + 1)}{cells}</Box>)
+    const buddy = reviewing
+      ? [
+          pad(1, 'bp'),
+          ...buddyPx[t + 1]!.map((u, i) => (
+            <Text key={`b${i}`} color={u.fg} backgroundColor={u.bg}>
+              {u.ch}
+            </Text>
+          )),
+        ]
+      : null
+    lines.push(<Box key={`r${t}`}>{meter(t + 1)}{cells}{buddy}</Box>)
   }
 
   return (
     <Box flexDirection="column">
-      <Box key="gap">{pad(METER, 'mgap')}{pad(cols, 'gap')}</Box>
+      <Box key="gap">{pad(METER, 'mgap')}{pad(cols, 'gap')}{reviewing ? [pad(1, 'bp0'), ...buddyPx[0]!.map((u, i) => (
+        <Text key={`b0${i}`} color={u.fg} backgroundColor={u.bg}>{u.ch}</Text>
+      ))] : null}</Box>
       {lines}
     </Box>
   )

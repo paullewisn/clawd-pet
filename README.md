@@ -12,6 +12,14 @@ Claude Code plugin. Banner above the prompt where Clawd, the pixel-art mascot, w
 - While you draft a prompt: Clawd walks to the left edge and looks down.
 - Cheers when a turn finishes.
 
+## Review requests
+
+- Polls every 2 minutes for open, non-draft PRs awaiting your review.
+- A second character appears at the right edge while a review is pending: a light octocat when any request is on GitHub, else a pink Clawd. The main Clawd's walking area shrinks to make room.
+- GitHub: `gh search prs --review-requested=@me` (needs `gh auth`).
+- Azure DevOps: PRs where you are a reviewer with no vote yet, via `az rest` (needs `az login` and `CLAWD_ADO_ORG`). Skipped when `CLAWD_ADO_ORG` is unset.
+- The flag clears once you submit a review.
+
 ## Link detection
 
 Bubble links come from text in the session:

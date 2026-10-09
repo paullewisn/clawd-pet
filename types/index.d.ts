@@ -10,6 +10,7 @@ declare module 'claude-code' {
       drafting: boolean
       doneSeq: number
       context: number
+      reviews: Ref[]
     }
   }
 }
