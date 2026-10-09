@@ -13,7 +13,7 @@ const reviews = atom({ plugin: 'clawd', key: 'reviews' } as const, [])
 const context = atom({ plugin: 'clawd', key: 'context' } as const, 0)
 
 const MAX_REFS = 20
-const REVIEW_POLL_MS = 120_000
+const REVIEW_POLL_MS = 20 * 60_000
 const ADO_RESOURCE = '499b84ac-1321-427f-aa17-267ca6975798'
 let adoUserId: string | null = null
 let polling = false

@@ -21,7 +21,16 @@ const darken = (hex: string) =>
     )
     .join('')}`
 
-const reserve = (p: { reviews?: unknown[] } | null | undefined) => ((p?.reviews?.length ?? 0) > 0 ? W + 1 : 0)
+const REVIEW_TEXT = 'REVIEW WANTED'
+const CONTEXT_TEXT = 'CONTEXT'
+const TEXT_IDLE = '#443a3a'
+const LABEL_AMBER = '#ffb454'
+const LABEL_RED = '#f44336'
+const AMBER_AT = 50
+const FLASH_TICKS = 4
+const RED_AT = 80
+const CHIP_W = REVIEW_TEXT.length + 2
+const SIDE = CHIP_W + 1
 
 let ink = BODY
 let shadeInk = SHADE
@@ -31,19 +40,8 @@ const familyOf = (model: string | undefined) =>
 
 const W = 12
 const ROWS = 8
-const METER = 2
-const RED_AT = 75
-const BUDDY_BODY = '#e86a92'
-const GREY = '#9aa5b4'
-const OCTO_FACE = '#ffc4a3'
-const OCTO_RED = '#b23a37'
-const METER_ROWS = ROWS / 2
-const METER_GREEN = '#4caf50'
-const METER_ORANGE = '#ff9800'
-const METER_RED = '#f44336'
-const METER_EMPTY = '#3a3a38'
 
-type Pixel = '.' | 'X' | 'E' | 'S' | 'F' | 'R'
+type Pixel = '.' | 'X' | 'E' | 'S'
 
 type Pose = 'front' | 'left' | 'right' | 'happy' | 'crouch' | 'down'
 
@@ -126,34 +124,7 @@ const sprite = (pose: Pose, step: number, flip: boolean): Pixel[][] =>
     ? [...rows(['............']), ...heads.crouch, ...rows([TOPS])]
     : [...(pose === 'happy' && flip ? happyFlip : heads[pose]), ...shadeLeg(pose, gait[GAIT_ORDER[step % 4]!]!)]
 
-const octocat = rows([
-  '.X........X.',
-  '.XX......XX.',
-  'XXXXXXXXXXXX',
-  'XXXXXXXXXXXX',
-  'XFRRFFFFRRFX',
-  'XFRRFFFFRRFX',
-  'XXFFFFFFFFXX',
-  'XXFFFRRFFFXX',
-  '.XXXXXXXXXX.',
-  '.X.XX..XX.X.',
-])
-
-const octoTips = rows(['.X........X.', '..X......X..'])
-const octoLegs = rows(['.X.XX..XX.X.', 'X..XX..XX..X'])
-
-const octoFrame = (tick: number): Pixel[][] => {
-  const g = octocat.map(r => r.slice())
-  if (tick % 28 < 2) {
-    for (const r of [4, 5]) g[r] = g[r]!.map(p => (p === 'R' ? 'F' : p))
-  }
-  g[0] = octoTips[Math.floor(tick / 5) % 2]!
-  g[9] = octoLegs[Math.floor(tick / 5) % 2]!
-
-  return g
-}
-
-const colour = (p: Pixel) => (p === 'X' ? ink : p === 'E' ? EYE : p === 'S' ? shadeInk : p === 'F' ? OCTO_FACE : p === 'R' ? OCTO_RED : BG)
+const colour = (p: Pixel) => (p === 'X' ? ink : p === 'E' ? EYE : p === 'S' ? shadeInk : BG)
 
 type Glyph = { x: number; ch: string; age: number; dx: number }
 
@@ -244,7 +215,7 @@ let latest: Props | null = null
 
 const Clawd: ClientModule<Props> = (props, surface) => {
   const { Box, Text, Link } = surface.elements
-  const cols = Math.max(surface.columns - METER - reserve(props), W)
+  const cols = Math.max(surface.columns - SIDE, W)
   const max = cols - W
   const s = surface.state as S | undefined
 
@@ -252,7 +223,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
     surface.every(120, () => {
       const L = latest
       const c0 = surface.state as S
-      const m = Math.max(surface.columns - METER - reserve(L), W) - W
+      const m = Math.max(surface.columns - SIDE, W) - W
       const busy = L?.working === true
       const tick = c0.tick + 1
       const spawn = busy && tick % spawnEvery(L!.mode) === 0
@@ -262,7 +233,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
         turn: Math.max(0, c0.turn - 1),
         blink: c0.blink > 0 ? c0.blink - 1 : Math.random() < (busy && L?.mode === 'thinking' ? 0.07 : 0.03) ? 2 : 0,
         cheer: Math.max(0, c0.cheer - 1),
-        glyphs: stepGlyphs(c0.glyphs, spawn, c0.x, Math.max(surface.columns - METER - reserve(L), W)),
+        glyphs: stepGlyphs(c0.glyphs, spawn, c0.x, Math.max(surface.columns - SIDE, W)),
       }
       if (c0.phase === 'leaving') {
         surface.setState(
@@ -318,11 +289,11 @@ const Clawd: ClientModule<Props> = (props, surface) => {
     })
     surface.onPointer(ev => {
       if (ev.type !== 'down' || ev.button !== 'left') return
-      const px = ev.x - METER
+      const px = ev.x
       const c = surface.state as S
       if (c.phase !== 'idle') return
-      const mc = Math.max(surface.columns - METER - reserve(latest), W)
-      if (px >= mc) return
+      const mc = Math.max(surface.columns - SIDE, W)
+      if (px < 0 || px >= mc) return
       const m = mc - W
       if (px >= c.x && px < c.x + W && ev.y >= 1 && ev.y <= ROWS / 2) {
         surface.setState(
@@ -376,7 +347,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
     : busy
     ? busyPose(props.mode, s?.tick ?? 0)
     : props.drafting
-      ? toEdge || (props.context ?? 0) >= RED_AT ? 'left' : 'down'
+      ? toEdge ? 'left' : 'down'
       : s && s.cheer > 0
         ? 'happy'
         : walking
@@ -460,46 +431,21 @@ const Clawd: ClientModule<Props> = (props, surface) => {
   const pad = (n: number, k: string) =>
     n > 0 ? <Text key={k}>{' '.repeat(n)}</Text> : null
 
-  const fill = Math.max(0, Math.min(100, props.context ?? 0)) / 100 * METER_ROWS * 2
-  const meter = (row: number) => {
-    const level = METER_ROWS - row
-    const units = Math.max(0, Math.min(2, fill - level * 2))
-    const zone = level < 2 ? METER_GREEN : level < 3 ? METER_ORANGE : METER_RED
-    const ch = units >= 1.5 ? '█' : units >= 0.5 ? '▄' : '░'
-
-    return <Text key="meter" color={units >= 0.5 ? zone : METER_EMPTY}>{ch + ' '}</Text>
-  }
-
-  const reviewing = reserve(props) > 0
-  const isGithub = (props.reviews ?? []).some(r => r.href.includes('github.com'))
-  const buddyPx = (() => {
-    const prev = [ink, shadeInk]
-    ink = isGithub ? GREY : BUDDY_BODY
-    shadeInk = isGithub ? GREY : darken(BUDDY_BODY)
-    const out = isGithub ? octoFrame(s?.tick ?? 0) : [...rows(['............', '............']), ...sprite('left', 0, false)]
-    const cells = [] as { ch: string; fg?: string; bg?: string }[][]
-    for (let t = 0; t < out.length / 2; t++) {
-      cells.push(
-        out[0]!.map((_, c) => {
-          const top = colour(out[t * 2]![c]!)
-          const bot = colour(out[t * 2 + 1]![c]!)
-
-          return top === BG && bot === BG
-            ? { ch: ' ' }
-            : top === bot
-              ? { ch: '█', fg: top }
-              : top === BG
-              ? { ch: '▄', fg: bot }
-              : bot === BG
-                ? { ch: '▀', fg: top }
-                : { ch: '▀', fg: top, bg: bot }
-        }),
-      )
-    }
-    ;[ink, shadeInk] = prev as [string, string]
-
-    return cells
-  })()
+  const ctx = props.context ?? 0
+  const ctxChip = ctx >= RED_AT ? LABEL_RED : ctx >= AMBER_AT ? LABEL_AMBER : null
+  const reviewing = (props.reviews?.length ?? 0) > 0
+  const flashOn = Math.floor((s?.tick ?? 0) / FLASH_TICKS) % 2 === 0
+  const chip = (text: string, on: string | null) => (
+    <Text key="lb" color={on && flashOn ? on : TEXT_IDLE} bold>
+      {' '.repeat(Math.floor((CHIP_W - text.length) / 2)) + text + ' '.repeat(Math.ceil((CHIP_W - text.length) / 2))}
+    </Text>
+  )
+  const label = (t: number) =>
+    t === ROWS / 2 - 2
+      ? [pad(1, 'lg'), chip(CONTEXT_TEXT, ctxChip)]
+      : t === ROWS / 2 - 1
+        ? [pad(1, 'lg'), chip(REVIEW_TEXT, reviewing ? LABEL_AMBER : null)]
+        : pad(SIDE, 'lb')
 
   const lines = []
   for (let t = 0; t < ROWS / 2; t++) {
@@ -552,7 +498,7 @@ const Clawd: ClientModule<Props> = (props, surface) => {
       for (let c = 0; c < W; c++) if (x + c >= 0 && x + c < cols) full[x + c] = cellsRow[c]!
       for (const g of s!.glyphs) {
         if (g.x >= 0 && g.x < cols && full[g.x]!.ch === ' ') {
-          full[g.x] = { ch: g.ch, fg: ink, dim: g.age > GLYPH_FADE }
+          full[g.x] = { ch: g.ch, fg: g.age > GLYPH_FADE ? TEXT_IDLE : ink }
         }
       }
       cells = [merge(full, 'f')]
@@ -560,24 +506,12 @@ const Clawd: ClientModule<Props> = (props, surface) => {
       cells = [pad(x, 'p0'), sprite, pad(cols - x - W, 'p1')]
     }
 
-    const buddy = reviewing
-      ? [
-          pad(1, 'bp'),
-          ...buddyPx[t + 1]!.map((u, i) => (
-            <Text key={`b${i}`} color={u.fg} backgroundColor={u.bg}>
-              {u.ch}
-            </Text>
-          )),
-        ]
-      : null
-    lines.push(<Box key={`r${t}`}>{meter(t + 1)}{cells}{buddy}</Box>)
+    lines.push(<Box key={`r${t}`}>{cells}{label(t)}</Box>)
   }
 
   return (
     <Box flexDirection="column">
-      <Box key="gap">{pad(METER, 'mgap')}{pad(cols, 'gap')}{reviewing ? [pad(1, 'bp0'), ...buddyPx[0]!.map((u, i) => (
-        <Text key={`b0${i}`} color={u.fg} backgroundColor={u.bg}>{u.ch}</Text>
-      ))] : null}</Box>
+      <Box key="gap">{pad(cols + SIDE, 'gap')}</Box>
       {lines}
     </Box>
   )
