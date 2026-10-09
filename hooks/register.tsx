@@ -177,27 +177,31 @@ export const register: Register = on => {
       return next(e)
     }
 
-    const { Client } = $.ui.resolve(e)
+    const above = await next(e)
+    const { Box, Client } = $.ui.resolve(e)
     const all = await read($, refs)
     const ordered = [...all.filter(r => r.kind === 'ticket'), ...all.filter(r => r.kind === 'pr')]
 
     return (
-      <Client
-        key="clawd"
-        module="./clawd.tsx"
-        width="100%"
-        height={5}
-        props={{
-          branch: await read($, branch),
-          refs: ordered,
-          working: e.props.isWorking,
-          model: await read($, model),
-          mode: await read($, mode),
-          drafting: await read($, drafting),
-          doneSeq: await read($, doneSeq),
-          context: await read($, context),
-        }}
-      />
+      <Box flexDirection="column">
+        {above}
+        <Client
+          key="clawd"
+          module="./clawd.tsx"
+          width="100%"
+          height={5}
+          props={{
+            branch: await read($, branch),
+            refs: ordered,
+            working: e.props.isWorking,
+            model: await read($, model),
+            mode: await read($, mode),
+            drafting: await read($, drafting),
+            doneSeq: await read($, doneSeq),
+            context: await read($, context),
+          }}
+        />
+      </Box>
     )
   })
 }
